@@ -1,4 +1,4 @@
-package com.sschr15.tools.minifier;
+package org.vineflower.tools.minifier;
 
 import org.jspecify.annotations.NullMarked;
 import org.slf4j.Logger;
@@ -13,7 +13,6 @@ import java.lang.classfile.attribute.InnerClassInfo;
 import java.lang.classfile.attribute.InnerClassesAttribute;
 import java.lang.classfile.attribute.RuntimeVisibleAnnotationsAttribute;
 import java.lang.classfile.constantpool.ClassEntry;
-import java.lang.classfile.constantpool.Utf8Entry;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;

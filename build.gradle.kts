@@ -2,7 +2,7 @@ plugins {
     java
 }
 
-group = "com.sschr15"
+group = "org.vineflower"
 version = "1.0.0"
 
 java {

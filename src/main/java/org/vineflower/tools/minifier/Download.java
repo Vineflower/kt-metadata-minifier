@@ -1,4 +1,4 @@
-package com.sschr15.tools.minifier;
+package org.vineflower.tools.minifier;
 
 import java.net.URI;
 import java.nio.file.Files;

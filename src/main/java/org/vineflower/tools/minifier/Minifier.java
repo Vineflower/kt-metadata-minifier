@@ -1,4 +1,4 @@
-package com.sschr15.tools.minifier;
+package org.vineflower.tools.minifier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
