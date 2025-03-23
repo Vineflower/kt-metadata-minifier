@@ -91,6 +91,11 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
                     builder.with(el);
                 }
                 case Interfaces itfs -> {
+                    if (!removeBuilders) {
+                        builder.with(el);
+                        return;
+                    }
+
                     List<ClassEntry> nonBuilderInterfaces = itfs.interfaces().stream().filter(entry -> !entry.name().stringValue().endsWith("OrBuilder")).toList();
                     Interfaces newItfs = Interfaces.of(nonBuilderInterfaces);
                     builder.with(newItfs);
