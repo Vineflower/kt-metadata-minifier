@@ -1,5 +1,6 @@
 plugins {
     java
+    application
 }
 
 group = "org.vineflower"
@@ -9,6 +10,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(24)
     }
+}
+
+application { 
+    mainClass = "org.vineflower.tools.minifier.Minifier"
 }
 
 repositories {
