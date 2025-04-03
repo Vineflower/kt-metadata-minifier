@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
+import java.util.Set;
 
 @NullMarked
 public class FileVisitor extends SimpleFileVisitor<Path> {
@@ -26,14 +27,45 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
 
     private final Path outputFs;
     private final Path root;
+    private final Set<String> protobufExtensions;
 
-    public FileVisitor(Path outputFs, Path root) {
+    public FileVisitor(Path outputFs, Path root, Set<String> protobufExtensions) {
         this.outputFs = outputFs;
         this.root = root;
+        this.protobufExtensions = protobufExtensions;
+    }
+
+    private boolean shouldIncludeInnerClass(InnerClassInfo innerClass) {
+//        return !innerClass.innerName().map(utf8 -> {
+//            if (protobufExtensions.stream().anyMatch(utf8.stringValue()::startsWith)) return false;
+//            if (utf8.equalsString("Builder")) return true;
+//            if (utf8.stringValue().endsWith("OrBuilder")) return true;
+//
+//            return false;
+//        }).orElse(false);
+
+        String name = innerClass.innerClass().asInternalName();
+        if (protobufExtensions.stream().anyMatch(name::startsWith)) return true;
+        if (name.endsWith("OrBuilder")) return false;
+        if (name.endsWith("$Builder")) return false;
+        return true;
+    }
+
+    private boolean shouldExcludeMethod(MethodModel method) {
+        String desc = method.methodTypeSymbol().returnType().descriptorString();
+        if (desc.length() == 1) return false;
+        String returnType = desc.substring(desc.indexOf('L') + 1, desc.length() - 1);
+
+        if (protobufExtensions.stream().anyMatch(returnType::startsWith)) return false;
+        if (returnType.startsWith("kotlin/metadata/internal/metadata/ProtoBuf") && desc.endsWith("$Builder")) return true;
+
+        return false;
     }
 
     @Override
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+        Path outputPath = outputFs.resolve(root.relativize(file).toString());
+
         if (!file.toString().endsWith(".class")) {
             if (file.toString().endsWith(".kotlin_module")) {
                 LOGGER.info("Skipping Kotlin metadata file: {}", file);
@@ -41,13 +73,22 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
             }
 
             LOGGER.info("Copying non-class file: {}", file);
-            Path outputPath = outputFs.resolve(root.relativize(file).toString());
             Files.createDirectories(outputPath.getParent());
             Files.copy(file, outputPath);
             return FileVisitResult.CONTINUE;
         }
 
-        if (file.toString().startsWith("/kotlin/metadata/internal/metadata/ProtoBuf") && file.toString().endsWith("$Builder.class")) {
+        boolean isBuilder = file.toString().startsWith("/kotlin/metadata/internal/metadata/") && file.toString().endsWith("$Builder.class");
+        boolean isExempt = protobufExtensions.stream().anyMatch(file.toString().substring(1)::startsWith);
+
+        if (isExempt) {
+            LOGGER.info("Copying exempt-from-checks file: {}", file);
+            Files.createDirectories(outputPath.getParent());
+            Files.copy(file, outputPath);
+            return FileVisitResult.CONTINUE;
+        }
+
+        if (isBuilder) {
             LOGGER.info("Skipping Builder class: {}", file);
             return FileVisitResult.CONTINUE;
         }
@@ -55,28 +96,27 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
         ClassFile classFileHandler = ClassFile.of();
         ClassModel clazz = classFileHandler.parse(file);
         boolean removeBuilders = clazz.thisClass().name().equalsString("kotlin/metadata/internal/metadata/ProtoBuf");
-        boolean[] kt = {false};
+        boolean[] skip = {false};
         byte[] bytes = classFileHandler.transformClass(clazz, (builder, el) -> {
-            if (kt[0]) return;
+            if (skip[0]) return;
 
             switch (el) {
                 case RuntimeVisibleAnnotationsAttribute attr -> {
                     if (attr.annotations().stream()
                             .anyMatch(annotation -> annotation.className().equalsString("Lkotlin/Metadata;"))) {
-                        kt[0] = true;
+                        skip[0] = true;
                         return;
                     }
                     builder.with(el);
                 }
                 case InnerClassesAttribute attr -> {
-                    if (!removeBuilders) {
+                    if (!removeBuilders || isExempt) {
                         builder.with(el);
                         return;
                     }
 
                     List<InnerClassInfo> filteredClasses = attr.classes().stream()
-                            .filter(innerClass -> !innerClass.innerName().map(utf8 -> utf8.equalsString("Builder")).orElse(false))
-                            .filter(innerClass -> !innerClass.innerName().map(utf8 -> utf8.stringValue().endsWith("OrBuilder")).orElse(false))
+                            .filter(this::shouldIncludeInnerClass)
                             .toList();
                     if (filteredClasses.isEmpty()) return;
 
@@ -84,14 +124,11 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
                     builder.with(newAttr);
                 }
                 case MethodModel method -> {
-                    String desc = method.methodTypeSymbol().returnType().descriptorString();
-                    if (desc.substring(desc.indexOf(')') + 1).startsWith("Lkotlin/metadata/internal/metadata/ProtoBuf") && desc.endsWith("$Builder;")) {
-                        return;
-                    }
+                    if (shouldExcludeMethod(method)) return;
                     builder.with(el);
                 }
                 case Interfaces itfs -> {
-                    if (!removeBuilders) {
+                    if (!removeBuilders || isExempt) {
                         builder.with(el);
                         return;
                     }
@@ -104,14 +141,12 @@ public class FileVisitor extends SimpleFileVisitor<Path> {
             }
         });
 
-        // Universally skip Kotlin classes
-        if (kt[0]) {
-            LOGGER.debug("Skipping Kotlin class: {}", file);
+        if (skip[0]) {
+            LOGGER.debug("Skipping class file: {}", file);
             return FileVisitResult.CONTINUE;
         }
 
         LOGGER.info("Copying minified version of class: {}", file);
-        Path outputPath = outputFs.resolve(root.relativize(file).toString());
         Files.createDirectories(outputPath.getParent());
         Files.write(outputPath, bytes);
         return FileVisitResult.CONTINUE;

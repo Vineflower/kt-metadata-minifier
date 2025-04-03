@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.*;
 import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 
 public class Minifier {
     private static final Logger LOGGER = LoggerFactory.getLogger(Minifier.class);
@@ -24,7 +24,9 @@ public class Minifier {
         try (FileSystem inputFs = FileSystems.newFileSystem(srcJar)) {
             Path root = inputFs.getPath("/");
             try (FileSystem outputFs = FileSystems.newFileSystem(destJar, Map.of("create", "true"))) {
-                Files.walkFileTree(root, new FileVisitor(outputFs.getPath("/"), root));
+                Set<String> protobufExtensions = new HashSet<>();
+                Files.walkFileTree(root, new ExtensionsFinder(protobufExtensions));
+                Files.walkFileTree(root, new FileVisitor(outputFs.getPath("/"), root, protobufExtensions));
             }
         }
     }
