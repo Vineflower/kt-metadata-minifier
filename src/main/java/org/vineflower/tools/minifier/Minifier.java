@@ -2,6 +2,9 @@ package org.vineflower.tools.minifier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.vineflower.tools.minifier.patch.ClassPatch;
+import org.vineflower.tools.minifier.patch.ClassPatches;
+import org.vineflower.tools.minifier.patch.Visitors;
 
 import java.nio.file.*;
 import java.io.IOException;
@@ -24,9 +27,9 @@ public class Minifier {
         try (FileSystem inputFs = FileSystems.newFileSystem(srcJar)) {
             Path root = inputFs.getPath("/");
             try (FileSystem outputFs = FileSystems.newFileSystem(destJar, Map.of("create", "true"))) {
-                Set<String> protobufExtensions = new HashSet<>();
-                Files.walkFileTree(root, new ExtensionsFinder(protobufExtensions));
-                Files.walkFileTree(root, new FileVisitor(outputFs.getPath("/"), root, protobufExtensions));
+                ClassPatch[] patches = ClassPatches.getPatches();
+                Files.walkFileTree(root, new Visitors.FirstPass(patches));
+                Files.walkFileTree(root, new Visitors.TransformPass(patches, outputFs.getPath("/"), root));
             }
         }
     }
