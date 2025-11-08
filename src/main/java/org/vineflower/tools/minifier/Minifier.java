@@ -14,14 +14,14 @@ public class Minifier {
     private static final Logger LOGGER = LoggerFactory.getLogger(Minifier.class);
 
     public static void main(String[] args) throws IOException {
-        String latestVersion = Download.findLatestVersion();
-        Path srcJar = Path.of("kotlin-metadata-" + latestVersion + ".jar");
+        String version = args.length > 0 ? args[0] : Download.findLatestVersion();
+        Path srcJar = Path.of("kotlin-metadata-" + version + ".jar");
         Path destJar = Path.of("metadata.jar");
         Files.deleteIfExists(destJar);
 
         if (!Files.exists(srcJar)) {
-            LOGGER.info("Downloading latest Kotlin Metadata JAR: {}", latestVersion);
-            Download.download(latestVersion, srcJar);
+            LOGGER.info("Downloading Kotlin Metadata JAR: {}", version);
+            Download.download(version, srcJar);
         }
 
         try (FileSystem inputFs = FileSystems.newFileSystem(srcJar)) {
