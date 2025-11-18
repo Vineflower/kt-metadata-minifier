@@ -15,6 +15,8 @@ public class ClassPatches {
                 new KotlinRemoval(),
                 new BuilderRemoval(),
                 new FlagsToInterface(),
+                new Renamer(),
+                new Stripper()
         };
     }
 }

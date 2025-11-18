@@ -6,6 +6,8 @@ import org.vineflower.tools.minifier.patch.ClassPatch;
 import org.vineflower.tools.minifier.patch.ClassPatches;
 import org.vineflower.tools.minifier.patch.Visitors;
 
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.constant.ClassDesc;
 import java.nio.file.*;
 import java.io.IOException;
 import java.util.*;
@@ -26,10 +28,15 @@ public class Minifier {
 
         try (FileSystem inputFs = FileSystems.newFileSystem(srcJar)) {
             Path root = inputFs.getPath("/");
+
+            Visitors.GatherData data = new Visitors.GatherData();
+            Files.walkFileTree(root, data);
+            ClassHierarchyResolver resolver = ClassHierarchyResolver.of(data.ifaces, data.hierarchy);
+
             try (FileSystem outputFs = FileSystems.newFileSystem(destJar, Map.of("create", "true"))) {
                 ClassPatch[] patches = ClassPatches.getPatches();
                 Files.walkFileTree(root, new Visitors.FirstPass(patches));
-                Files.walkFileTree(root, new Visitors.TransformPass(patches, outputFs.getPath("/"), root));
+                Files.walkFileTree(root, new Visitors.TransformPass(resolver, patches, outputFs.getPath("/"), root, outputFs));
             }
         }
     }
